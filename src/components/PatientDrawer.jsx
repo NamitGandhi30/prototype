@@ -40,6 +40,7 @@ export default function PatientDrawer({ patientId, onClose }) {
             {today.status === 'clear' && <Badge tone="ok">Measured today</Badge>}
             {today.status === 'none' && p.status === 'active' && <Badge tone="warn">Temp pending</Badge>}
             {p.dischargeApproved && <Badge tone="info">Discharge approved</Badge>}
+            {p.escalated && <Badge tone="danger">Urgent escalation</Badge>}
             {eligible && !p.dischargeApproved && <Badge tone="ok">Discharge-ready</Badge>}
           </div>
 
@@ -61,10 +62,22 @@ export default function PatientDrawer({ patientId, onClose }) {
             {readingsDesc.length === 0 && <div className="muted small">No readings recorded yet.</div>}
             <div className="timeline">
               {readingsDesc.map((r) => (
-                <div className="tl-row" key={r.id}>
-                  <span className={`tl-dot ${isFebrile(r.tempF) ? 'hot' : 'cool'}`} />
-                  <span className="tl-temp">{r.tempF}°F{isHighFever(r.tempF) ? ' 🔴' : ''}</span>
-                  <span className="muted small">{fmtTime(r.ts)} · {r.by}</span>
+                <div className="reading-record" key={r.id}>
+                  <div className="tl-row">
+                    <span className={`tl-dot ${isFebrile(r.tempF) ? 'hot' : 'cool'}`} />
+                    <span className="tl-temp">{r.tempF}°F{isHighFever(r.tempF) ? ' high' : ''}</span>
+                    <span className="muted small">{fmtTime(r.ts)} · {r.by}</span>
+                  </div>
+                  {(r.note || r.needsRecheck || r.escalated || r.overrideReason) && (
+                    <div className="reading-context">
+                      {r.note && <div>{r.note}</div>}
+                      <div className="drawer-badges">
+                        {r.needsRecheck && <Badge tone="warn">Needs recheck</Badge>}
+                        {r.escalated && <Badge tone="danger">Escalated</Badge>}
+                        {r.overrideReason && <Badge tone="neutral">Repeat: {r.overrideReason}</Badge>}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>

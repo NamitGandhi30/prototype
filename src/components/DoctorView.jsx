@@ -7,7 +7,7 @@ import { useStore } from '../store.jsx'
 import { ROLES, CONFIG } from '../constants.js'
 import {
   todayStatus, visitedToday, noFeverStreak, isDischargeEligible,
-  isHighFever
+  isHighFever, workflowStatus
 } from '../logic.js'
 import { Badge, TempBadge, Modal } from './ui.jsx'
 import PatientDrawer from './PatientDrawer.jsx'
@@ -30,7 +30,8 @@ export default function DoctorView() {
         today: todayStatus(p),
         visit: visitedToday(p),
         streak: noFeverStreak(p),
-        eligible: isDischargeEligible(p)
+        eligible: isDischargeEligible(p),
+        workflow: workflowStatus(p)
       }))
       .sort((a, b) => priority(a) - priority(b) || a.p.bed - b.p.bed)
   }, [active, q])
@@ -58,6 +59,7 @@ export default function DoctorView() {
             key={row.p.id} row={row}
             onVisit={() => setVisitFor(row.p)}
             onHistory={() => setHistoryFor(row.p.id)}
+            onEscalation={(escalated) => dispatch({ type: 'SET_ESCALATION', patientId: row.p.id, escalated, by: me })}
             onApprove={() => dispatch({ type: 'APPROVE_DISCHARGE', patientId: row.p.id, by: me })}
             onDeath={() => setDeathFor(row.p)}
           />
@@ -79,14 +81,15 @@ export default function DoctorView() {
 
 // lower number = higher priority
 function priority(row) {
+  if (row.workflow.escalated) return -1
   if (row.today.status === 'febrile') return 0
   if (row.today.status === 'none') return 1
   if (!row.visit.visited) return 2
   return 3
 }
 
-function DoctorRow({ row, onVisit, onHistory, onApprove, onDeath }) {
-  const { p, today, visit, streak, eligible } = row
+function DoctorRow({ row, onVisit, onHistory, onEscalation, onApprove, onDeath }) {
+  const { p, today, visit, streak, eligible, workflow } = row
   const highFever = today.readings.some((r) => isHighFever(r.tempF))
 
   return (
@@ -96,6 +99,9 @@ function DoctorRow({ row, onVisit, onHistory, onApprove, onDeath }) {
         <div className="pr-name">
           {p.name}
           {highFever && <Badge tone="danger" title="High fever flagged">HIGH FEVER</Badge>}
+          {workflow.escalated && <Badge tone="danger">URGENT</Badge>}
+          {workflow.needsRecheck && <Badge tone="warn">Recheck requested</Badge>}
+          {workflow.readyForReview && <Badge tone="info">Ready for review</Badge>}
           {p.dischargeApproved
             ? <Badge tone="info" title="Approved — awaiting bed release by admin">Discharge approved</Badge>
             : eligible && <Badge tone="ok" title="Meets 3-day no-fever criterion">Discharge-ready</Badge>}
@@ -110,6 +116,9 @@ function DoctorRow({ row, onVisit, onHistory, onApprove, onDeath }) {
       </div>
       <div className="pr-actions col">
         <button className="btn" onClick={onHistory}>View history</button>
+        <button className={workflow.escalated ? 'btn btn-ghost-danger' : 'btn'} onClick={() => onEscalation(!workflow.escalated)}>
+          {workflow.escalated ? 'Resolve escalation' : 'Mark urgent'}
+        </button>
         <button className="btn" onClick={onVisit}>Log visit</button>
         <button className="btn btn-primary" disabled={!eligible || p.dischargeApproved} onClick={onApprove}
           title={p.dischargeApproved ? 'Already approved — awaiting bed release' : eligible ? 'Approve discharge' : `Needs ${CONFIG.NO_FEVER_DAYS_REQUIRED} consecutive no-fever days`}>

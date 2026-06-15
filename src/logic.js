@@ -112,12 +112,32 @@ export function recentReadings(patient, n = 5) {
   return [...(patient.readings || [])].sort((a, b) => b.ts - a.ts).slice(0, n)
 }
 
+export function workflowStatus(patient, today = Date.now()) {
+  const temp = todayStatus(patient, today)
+  const visit = visitedToday(patient, today)
+  const todaysReadings = temp.readings || []
+  const latestToday = [...todaysReadings].sort((a, b) => b.ts - a.ts)[0]
+  return {
+    temp,
+    visit,
+    readyForReview: temp.status !== 'none' && !visit.visited,
+    needsRecheck: Boolean(latestToday?.needsRecheck),
+    escalated: patient.escalated != null ? Boolean(patient.escalated) : todaysReadings.some((r) => r.escalated),
+    reviewPending: temp.status !== 'none' && !visit.visited,
+    tempPending: temp.status === 'none'
+  }
+}
+
 // ---- Facility-level metrics (facility-lead dashboard) ----------------------
 export function facilityMetrics(patients) {
   const active = patients.filter((p) => p.status === 'active')
   const discharged = patients.filter((p) => p.status === 'discharged')
   const deceased = patients.filter((p) => p.status === 'deceased')
   const outcomes = discharged.length + deceased.length
+  const workflows = active.map((p) => workflowStatus(p))
+  const dischargeWaits = discharged
+    .filter((p) => p.dischargeApprovedTs && p.outcomeTs)
+    .map((p) => p.outcomeTs - p.dischargeApprovedTs)
 
   return {
     activeCount: active.length,
@@ -128,6 +148,13 @@ export function facilityMetrics(patients) {
     deceasedCount: deceased.length,
     outcomes,
     successRate: outcomes ? discharged.length / outcomes : null,
-    mortalityRate: outcomes ? deceased.length / outcomes : null
+    mortalityRate: outcomes ? deceased.length / outcomes : null,
+    tempPendingCount: workflows.filter((w) => w.tempPending).length,
+    reviewPendingCount: workflows.filter((w) => w.reviewPending).length,
+    escalatedCount: workflows.filter((w) => w.escalated).length,
+    approvedPendingCount: active.filter((p) => p.dischargeApproved).length,
+    nurseCompletionRate: active.length ? workflows.filter((w) => !w.tempPending).length / active.length : 1,
+    doctorCompletionRate: active.length ? workflows.filter((w) => w.visit.visited).length / active.length : 1,
+    avgDischargeWaitMs: dischargeWaits.length ? dischargeWaits.reduce((sum, n) => sum + n, 0) / dischargeWaits.length : null
   }
 }

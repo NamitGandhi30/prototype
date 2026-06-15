@@ -1,17 +1,23 @@
 // Facility lead (head doctor): read-only quality view. Success rate vs the 85%
 // benchmark, mortality vs 15%, occupancy, total outcomes — the thing the head
 // doctor said they have no way to measure today. Plus a live audit feed.
-import React from 'react'
+import React, { useState } from 'react'
 import { useStore } from '../store.jsx'
 import { CONFIG } from '../constants.js'
-import { facilityMetrics } from '../logic.js'
+import { facilityMetrics, workflowStatus } from '../logic.js'
 import { StatCard, Bar, Badge, timeAgo } from './ui.jsx'
+import PatientDrawer from './PatientDrawer.jsx'
 
 const pct = (x) => (x == null ? '—' : `${Math.round(x * 100)}%`)
 
 export default function FacilityView() {
   const { state } = useStore()
   const m = facilityMetrics(state.patients)
+  const [historyFor, setHistoryFor] = useState(null)
+  const abnormalCases = state.patients
+    .filter((p) => p.status === 'active')
+    .map((p) => ({ p, workflow: workflowStatus(p) }))
+    .filter(({ workflow }) => workflow.escalated || workflow.needsRecheck || workflow.temp.status === 'febrile')
 
   const successOk = m.successRate != null && m.successRate >= CONFIG.SUCCESS_BENCHMARK
   const mortalityOk = m.mortalityRate != null && m.mortalityRate <= CONFIG.MORTALITY_BENCHMARK
@@ -55,8 +61,61 @@ export default function FacilityView() {
           </div>
         </section>
       </div>
+
+      <div className="two-col oversight-grid">
+        <section className="panel">
+          <h3>Workflow bottlenecks</h3>
+          <div className="bottleneck-list">
+            <Bottleneck label="Temperature capture pending" value={m.tempPendingCount} total={m.activeCount} tone={m.tempPendingCount ? 'warn' : 'ok'} />
+            <Bottleneck label="Doctor review pending" value={m.reviewPendingCount} total={m.activeCount} tone={m.reviewPendingCount ? 'warn' : 'ok'} />
+            <Bottleneck label="Approved, awaiting discharge" value={m.approvedPendingCount} total={m.activeCount} tone={m.approvedPendingCount ? 'warn' : 'ok'} />
+            <Bottleneck label="Active escalations" value={m.escalatedCount} total={m.activeCount} tone={m.escalatedCount ? 'danger' : 'ok'} />
+          </div>
+          <div className="team-performance">
+            <div><span>Nurse round completion</span><strong>{pct(m.nurseCompletionRate)}</strong></div>
+            <Bar pct={m.nurseCompletionRate} tone={m.nurseCompletionRate === 1 ? 'ok' : 'brand'} />
+            <div><span>Doctor review completion</span><strong>{pct(m.doctorCompletionRate)}</strong></div>
+            <Bar pct={m.doctorCompletionRate} tone={m.doctorCompletionRate === 1 ? 'ok' : 'brand'} />
+          </div>
+          <p className="muted small throughput-note">Average approval-to-release time: <strong>{formatDuration(m.avgDischargeWaitMs)}</strong></p>
+        </section>
+
+        <section className="panel">
+          <h3>Abnormal case review <Badge tone={abnormalCases.length ? 'danger' : 'ok'}>{abnormalCases.length}</Badge></h3>
+          <div className="exception-list">
+            {abnormalCases.map(({ p, workflow }) => (
+              <button className="exception-row" key={p.id} onClick={() => setHistoryFor(p.id)}>
+                <span><strong>{p.name}</strong><small>Bed #{p.bed}</small></span>
+                <span className="exception-tags">
+                  {workflow.escalated && <Badge tone="danger">Escalated</Badge>}
+                  {workflow.needsRecheck && <Badge tone="warn">Recheck</Badge>}
+                  {workflow.temp.status === 'febrile' && <Badge tone="danger">Febrile</Badge>}
+                </span>
+              </button>
+            ))}
+            {abnormalCases.length === 0 && <div className="empty">No abnormal active cases.</div>}
+          </div>
+        </section>
+      </div>
+      {historyFor && <PatientDrawer patientId={historyFor} onClose={() => setHistoryFor(null)} />}
     </div>
   )
+}
+
+function Bottleneck({ label, value, total, tone }) {
+  return (
+    <div className="bottleneck-row">
+      <span>{label}</span>
+      <Badge tone={tone}>{value}/{total}</Badge>
+    </div>
+  )
+}
+
+function formatDuration(ms) {
+  if (ms == null) return 'No tracked handoffs yet'
+  const minutes = Math.max(1, Math.round(ms / 60000))
+  if (minutes < 60) return `${minutes} min`
+  return `${(minutes / 60).toFixed(1)} hr`
 }
 
 function BenchmarkBar({ value, benchmark, good }) {

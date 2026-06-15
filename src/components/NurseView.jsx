@@ -4,7 +4,7 @@
 import React, { useMemo, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { ROLES, CONFIG } from '../constants.js'
-import { todayStatus, latestReading, noFeverStreak, validateTemp } from '../logic.js'
+import { todayStatus, latestReading, noFeverStreak, validateTemp, workflowStatus } from '../logic.js'
 import { Badge, TempBadge, Modal, Bar, fmtTime } from './ui.jsx'
 import PatientDrawer from './PatientDrawer.jsx'
 
@@ -20,10 +20,10 @@ export default function NurseView() {
   const active = state.patients.filter((p) => p.status === 'active')
   const rows = useMemo(() => {
     return active
-      .map((p) => ({ p, today: todayStatus(p) }))
+      .map((p) => ({ p, today: todayStatus(p), workflow: workflowStatus(p) }))
       .sort((a, b) => {
-        const rank = (s) => (s === 'none' ? 0 : s === 'febrile' ? 1 : 2)
-        return rank(a.today.status) - rank(b.today.status) || a.p.bed - b.p.bed
+        const rank = (row) => row.workflow.escalated ? 0 : row.workflow.needsRecheck ? 1 : row.today.status === 'none' ? 2 : row.today.status === 'febrile' ? 3 : 4
+        return rank(a) - rank(b) || a.p.bed - b.p.bed
       })
   }, [active])
 
@@ -65,14 +65,19 @@ export default function NurseView() {
       </div>
 
       <div className="card-list">
-        {visible.map(({ p, today }) => {
+        {visible.map(({ p, today, workflow }) => {
           const last = latestReading(p)
           const streak = noFeverStreak(p)
           return (
             <div className="patient-row" key={p.id}>
               <div className="pr-bed">#{p.bed}</div>
               <div className="pr-main">
-                <div className="pr-name">{p.name}</div>
+                <div className="pr-name">
+                  {p.name}
+                  {workflow.escalated && <Badge tone="danger">Escalated</Badge>}
+                  {workflow.needsRecheck && <Badge tone="warn">Needs recheck</Badge>}
+                  {workflow.readyForReview && <Badge tone="info">Ready for doctor</Badge>}
+                </div>
                 <div className="pr-meta">
                   {last ? <>Last: {last.tempF}°F · {fmtTime(last.ts)}</> : 'No readings yet'}
                   {' · '}<span title="Consecutive no-fever days">streak {streak}/{CONFIG.NO_FEVER_DAYS_REQUIRED}</span>
@@ -97,9 +102,9 @@ export default function NurseView() {
         <RecordTempModal
           patient={target}
           onClose={() => setTarget(null)}
-          onSave={(tempF) => {
-            dispatch({ type: 'RECORD_TEMP', patientId: target.id, tempF, by: me })
-            setToast(`Recorded ${tempF}°F for ${target.name}. Now visible to the doctor.`)
+          onSave={(reading) => {
+            dispatch({ type: 'RECORD_TEMP', patientId: target.id, by: me, ...reading })
+            setToast(`Recorded ${reading.tempF}°F for ${target.name}. Now visible to the doctor.`)
             setTimeout(() => setToast(null), 4000)
             setTarget(null)
           }}
@@ -112,10 +117,16 @@ export default function NurseView() {
 
 function RecordTempModal({ patient, onClose, onSave }) {
   const [val, setVal] = useState('')
+  const [note, setNote] = useState('')
+  const [needsRecheck, setNeedsRecheck] = useState(false)
+  const [escalated, setEscalated] = useState(false)
+  const [overrideReason, setOverrideReason] = useState('')
   const today = todayStatus(patient)
   const num = parseFloat(val)
   const check = val === '' ? { ok: false } : validateTemp(num)
   const alreadyToday = today.status !== 'none'
+  const abnormal = check.ok && num >= CONFIG.FEVER_THRESHOLD_F
+  const canSave = check.ok && (!alreadyToday || overrideReason.trim()) && (!abnormal || note.trim())
 
   return (
     <Modal title={`Record temperature — ${patient.name}`} onClose={onClose}>
@@ -138,13 +149,35 @@ function RecordTempModal({ patient, onClose, onSave }) {
         </div>
       )}
 
+      {alreadyToday && (
+        <div className="form-row">
+          <label>Reason for repeat reading</label>
+          <select value={overrideReason} onChange={(e) => setOverrideReason(e.target.value)}>
+            <option value="">Select a required reason</option>
+            <option>Previous entry was incorrect</option>
+            <option>Doctor requested a recheck</option>
+            <option>Patient condition changed</option>
+          </select>
+        </div>
+      )}
+
+      <div className="form-row">
+        <label>Clinical note {abnormal ? '(required for abnormal reading)' : '(optional)'}</label>
+        <textarea rows={3} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Symptoms, context, or handoff note" />
+      </div>
+
+      <div className="capture-options">
+        <label className="toggle"><input type="checkbox" checked={needsRecheck} onChange={(e) => setNeedsRecheck(e.target.checked)} /> Needs recheck</label>
+        <label className="toggle"><input type="checkbox" checked={escalated} onChange={(e) => setEscalated(e.target.checked)} /> Escalate to doctor</label>
+      </div>
+
       <div className="form-meta muted">
         Recorded by {ROLES.nurse.user} · {new Date().toLocaleString()}
       </div>
 
       <div className="modal-actions">
         <button className="btn" onClick={onClose}>Cancel</button>
-        <button className="btn btn-primary" disabled={!check.ok} onClick={() => onSave(num)}>
+        <button className="btn btn-primary" disabled={!canSave} onClick={() => onSave({ tempF: num, note: note.trim(), needsRecheck, escalated, overrideReason })}>
           Save reading
         </button>
       </div>

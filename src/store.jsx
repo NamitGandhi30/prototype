@@ -34,11 +34,11 @@ function reducer(state, action) {
   switch (action.type) {
     // -- Nurse: record a temperature -------------------------------------
     case 'RECORD_TEMP': {
-      const { patientId, tempF, by } = action
+      const { patientId, tempF, by, note = '', needsRecheck = false, escalated = false, overrideReason = '' } = action
       const patients = state.patients.map((p) => {
         if (p.id !== patientId) return p
-        const reading = { id: newId('r'), tempF, ts: Date.now(), by }
-        return { ...p, readings: [...p.readings, reading] }
+        const reading = { id: newId('r'), tempF, ts: Date.now(), by, note, needsRecheck, escalated, overrideReason }
+        return { ...p, escalated: p.escalated || escalated, readings: [...p.readings, reading] }
       })
       const p = patients.find((x) => x.id === patientId)
       return {
@@ -47,6 +47,19 @@ function reducer(state, action) {
         log: logEntry(state, {
           user: by, role: 'nurse', action: 'Recorded temperature',
           detail: `${p.name} — ${tempF}°F`
+        })
+      }
+    }
+
+    case 'SET_ESCALATION': {
+      const { patientId, escalated, by } = action
+      const target = state.patients.find((p) => p.id === patientId)
+      if (!target || target.status !== 'active') return state
+      const patients = state.patients.map((p) => p.id === patientId ? { ...p, escalated } : p)
+      return {
+        ...state, patients,
+        log: logEntry(state, {
+          user: by, role: 'doctor', action: escalated ? 'Escalated urgent case' : 'Resolved escalation', detail: target.name
         })
       }
     }
@@ -72,7 +85,7 @@ function reducer(state, action) {
       const target = state.patients.find((p) => p.id === patientId)
       if (!target || !isDischargeEligible(target)) return state // guard
       const patients = state.patients.map((p) =>
-        p.id === patientId ? { ...p, dischargeApproved: true } : p
+        p.id === patientId ? { ...p, dischargeApproved: true, dischargeApprovedTs: Date.now(), dischargeApprovedBy: by } : p
       )
       return {
         ...state, patients,
@@ -87,7 +100,7 @@ function reducer(state, action) {
       if (!target || !target.dischargeApproved || target.status !== 'active') return state
       const patients = state.patients.map((p) =>
         p.id === patientId
-          ? { ...p, status: 'discharged', bed: null, outcomeTs: Date.now(), outcomeBy: by }
+          ? { ...p, status: 'discharged', outcomeBed: p.bed, bed: null, outcomeTs: Date.now(), outcomeBy: by }
           : p
       )
       return {

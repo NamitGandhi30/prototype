@@ -5,7 +5,7 @@ import React, { useState } from 'react'
 import { useStore } from '../store.jsx'
 import { ROLES, CONFIG } from '../constants.js'
 import { facilityMetrics } from '../logic.js'
-import { Badge, Bar, fmtTime } from './ui.jsx'
+import { Badge, Bar, fmtTime, timeAgo } from './ui.jsx'
 import PatientDrawer from './PatientDrawer.jsx'
 
 export default function AdminView() {
@@ -15,6 +15,10 @@ export default function AdminView() {
   const full = m.occupancy >= CONFIG.BED_CAPACITY
 
   const queue = state.patients.filter((p) => p.status === 'active' && p.dischargeApproved)
+  const dischargeHistory = state.patients
+    .filter((p) => p.status === 'discharged')
+    .sort((a, b) => (b.outcomeTs || 0) - (a.outcomeTs || 0))
+    .slice(0, 8)
   const [name, setName] = useState('')
   const [historyFor, setHistoryFor] = useState(null)
 
@@ -35,6 +39,13 @@ export default function AdminView() {
         <Bar pct={m.occupancyPct} tone={full ? 'danger' : m.occupancyPct > 0.9 ? 'warn' : 'brand'} />
       </div>
 
+      {queue.length > 0 && (
+        <div className="handoff-alert">
+          <strong>{queue.length} doctor handoff{queue.length === 1 ? '' : 's'} ready</strong>
+          <span>Complete discharge processing to release {queue.length === 1 ? 'the bed' : 'beds'}.</span>
+        </div>
+      )}
+
       <div className="two-col">
         <section className="panel">
           <h3>Discharge queue <Badge tone="info">{queue.length}</Badge></h3>
@@ -45,7 +56,10 @@ export default function AdminView() {
                 <div className="pr-bed">#{p.bed}</div>
                 <div className="pr-main">
                   <div className="pr-name">{p.name}</div>
-                  <div className="pr-meta muted">Approved by Dr. — admitted {fmtTime(p.admittedTs)}</div>
+                  <div className="pr-meta muted">
+                    {p.dischargeApprovedBy || 'Doctor'} handoff
+                    {p.dischargeApprovedTs ? ` ${timeAgo(p.dischargeApprovedTs)}` : ''} · admitted {fmtTime(p.admittedTs)}
+                  </div>
                 </div>
                 <div className="pr-actions">
                   <button className="btn" onClick={() => setHistoryFor(p.id)}>History</button>
@@ -76,6 +90,19 @@ export default function AdminView() {
           </button>
         </section>
       </div>
+
+      <section className="panel discharge-log">
+        <h3>Recent discharge log <Badge tone="neutral">{dischargeHistory.length}</Badge></h3>
+        <div className="table-list">
+          {dischargeHistory.map((p) => (
+            <button className="table-row" key={p.id} onClick={() => setHistoryFor(p.id)}>
+              <span><strong>{p.name}</strong><small>Bed #{p.outcomeBed || '—'}</small></span>
+              <span><strong>{fmtTime(p.outcomeTs)}</strong><small>{timeAgo(p.outcomeTs)}</small></span>
+              <span><strong>Discharged</strong><small>{p.outcomeBy}</small></span>
+            </button>
+          ))}
+        </div>
+      </section>
       {historyFor && <PatientDrawer patientId={historyFor} onClose={() => setHistoryFor(null)} />}
     </div>
   )
