@@ -1,7 +1,7 @@
 // Facility lead (head doctor): read-only quality view. Success rate vs the 85%
 // benchmark, mortality vs 15%, occupancy, total outcomes — the thing the head
 // doctor said they have no way to measure today. Plus a live audit feed.
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { CONFIG } from '../constants.js'
 import { facilityMetrics, workflowStatus } from '../logic.js'
@@ -12,12 +12,15 @@ const pct = (x) => (x == null ? '—' : `${Math.round(x * 100)}%`)
 
 export default function FacilityView() {
   const { state } = useStore()
-  const m = facilityMetrics(state.patients)
+  const m = useMemo(() => facilityMetrics(state.patients), [state.patients])
   const [historyFor, setHistoryFor] = useState(null)
-  const abnormalCases = state.patients
-    .filter((p) => p.status === 'active')
-    .map((p) => ({ p, workflow: workflowStatus(p) }))
-    .filter(({ workflow }) => workflow.escalated || workflow.needsRecheck || workflow.temp.status === 'febrile')
+  const abnormalCases = useMemo(
+    () => state.patients
+      .filter((p) => p.status === 'active')
+      .map((p) => ({ p, workflow: workflowStatus(p) }))
+      .filter(({ workflow }) => workflow.escalated || workflow.needsRecheck || workflow.temp.status === 'febrile'),
+    [state.patients]
+  )
 
   const successOk = m.successRate != null && m.successRate >= CONFIG.SUCCESS_BENCHMARK
   const mortalityOk = m.mortalityRate != null && m.mortalityRate <= CONFIG.MORTALITY_BENCHMARK

@@ -1,7 +1,7 @@
 // Admin / front desk: throughput owner. Live occupancy vs the 74-bed cap, the
 // doctor-approved discharge queue (completing one is what actually frees a
 // bed), and an admit form that hard-blocks at capacity.
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { ROLES, CONFIG } from '../constants.js'
 import { facilityMetrics } from '../logic.js'
@@ -11,14 +11,20 @@ import PatientDrawer from './PatientDrawer.jsx'
 export default function AdminView() {
   const { state, dispatch } = useStore()
   const me = ROLES.admin.user
-  const m = facilityMetrics(state.patients)
+  const m = useMemo(() => facilityMetrics(state.patients), [state.patients])
   const full = m.occupancy >= CONFIG.BED_CAPACITY
 
-  const queue = state.patients.filter((p) => p.status === 'active' && p.dischargeApproved)
-  const dischargeHistory = state.patients
-    .filter((p) => p.status === 'discharged')
-    .sort((a, b) => (b.outcomeTs || 0) - (a.outcomeTs || 0))
-    .slice(0, 8)
+  const queue = useMemo(
+    () => state.patients.filter((p) => p.status === 'active' && p.dischargeApproved),
+    [state.patients]
+  )
+  const dischargeHistory = useMemo(
+    () => state.patients
+      .filter((p) => p.status === 'discharged')
+      .sort((a, b) => (b.outcomeTs || 0) - (a.outcomeTs || 0))
+      .slice(0, 8),
+    [state.patients]
+  )
   const [name, setName] = useState('')
   const [historyFor, setHistoryFor] = useState(null)
 

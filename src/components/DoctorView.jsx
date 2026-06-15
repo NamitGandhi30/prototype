@@ -2,7 +2,7 @@
 // day, the no-fever streak, recent readings; logs visits, approves discharge
 // once the criterion is met, and records deaths. Febrile / not-yet-seen
 // patients sort to the top.
-import React, { useMemo, useState } from 'react'
+import React, { useDeferredValue, useMemo, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { ROLES, CONFIG } from '../constants.js'
 import {
@@ -19,11 +19,12 @@ export default function DoctorView() {
   const [deathFor, setDeathFor] = useState(null)
   const [historyFor, setHistoryFor] = useState(null)
   const [search, setSearch] = useState('')
+  const deferredSearch = useDeferredValue(search)
 
-  const active = state.patients.filter((p) => p.status === 'active')
-  const q = search.trim().toLowerCase()
+  const q = deferredSearch.trim().toLowerCase()
   const rows = useMemo(() => {
-    return active
+    return state.patients
+      .filter((p) => p.status === 'active')
       .filter((p) => (q ? p.name.toLowerCase().includes(q) || String(p.bed) === q : true))
       .map((p) => ({
         p,
@@ -34,7 +35,7 @@ export default function DoctorView() {
         workflow: workflowStatus(p)
       }))
       .sort((a, b) => priority(a) - priority(b) || a.p.bed - b.p.bed)
-  }, [active, q])
+  }, [q, state.patients])
 
   return (
     <div>

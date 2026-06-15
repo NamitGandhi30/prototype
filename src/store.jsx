@@ -4,7 +4,7 @@
 // here so permission rules and the audit trail are enforced in one place.
 // ---------------------------------------------------------------------------
 
-import React, { createContext, useContext, useEffect, useReducer } from 'react'
+import React, { createContext, useContext, useEffect, useMemo, useReducer } from 'react'
 import { buildSeed } from './seed.js'
 import { isDischargeEligible } from './logic.js'
 import { CONFIG } from './constants.js'
@@ -154,12 +154,13 @@ const StoreContext = createContext(null)
 
 export function StoreProvider({ children }) {
   const [state, dispatch] = useReducer(reducer, undefined, init)
+  const value = useMemo(() => ({ state, dispatch }), [state])
 
   useEffect(() => {
     try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)) } catch (_) { /* ignore */ }
   }, [state])
 
-  return <StoreContext.Provider value={{ state, dispatch }}>{children}</StoreContext.Provider>
+  return <StoreContext.Provider value={value}>{children}</StoreContext.Provider>
 }
 
 export function useStore() {

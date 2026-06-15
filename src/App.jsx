@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useMemo, useState } from 'react'
 import { useStore } from './store.jsx'
 import { ROLES, ROLE_ORDER, CONFIG, DEMO_PASSWORD } from './constants.js'
 import { facilityMetrics } from './logic.js'
@@ -9,6 +9,7 @@ import FacilityView from './components/FacilityView.jsx'
 
 const VIEWS = { nurse: NurseView, doctor: DoctorView, admin: AdminView, lead: FacilityView }
 const SESSION_KEY = 'recovery-centre-session'
+const DATE_FORMATTER = new Intl.DateTimeFormat('en', { weekday: 'long', month: 'long', day: 'numeric' })
 
 function initialRole() {
   try {
@@ -22,6 +23,11 @@ function initialRole() {
 export default function App() {
   const { state, dispatch } = useStore()
   const [role, setRole] = useState(initialRole)
+  const m = useMemo(() => facilityMetrics(state.patients), [state.patients])
+  const awaitingDischarge = useMemo(
+    () => state.patients.filter((p) => p.status === 'active' && p.dischargeApproved).length,
+    [state.patients]
+  )
 
   const signIn = (nextRole) => {
     try { sessionStorage.setItem(SESSION_KEY, nextRole) } catch (_) { /* ignore */ }
@@ -36,10 +42,9 @@ export default function App() {
   if (!role) return <SignIn onSignIn={signIn} />
 
   const View = VIEWS[role]
-  const m = facilityMetrics(state.patients)
   const active = ROLES[role]
 
-  const today = new Intl.DateTimeFormat('en', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date())
+  const today = DATE_FORMATTER.format(new Date())
 
   return (
     <div className="app" style={{ '--role-color': active.color }}>
@@ -80,7 +85,7 @@ export default function App() {
 
       <div className="quickbar">
         <div className="quick-stat"><span>Occupancy</span><strong>{m.occupancy}<small> / {CONFIG.BED_CAPACITY}</small></strong></div>
-        <div className="quick-stat"><span>Awaiting discharge</span><strong>{state.patients.filter((p) => p.status === 'active' && p.dischargeApproved).length}</strong></div>
+        <div className="quick-stat"><span>Awaiting discharge</span><strong>{awaitingDischarge}</strong></div>
         <div className="quick-stat"><span>Recovered</span><strong>{m.dischargedCount}</strong></div>
         <div className="quick-stat"><span>Exceptions</span><strong>{m.escalatedCount + m.tempPendingCount}</strong></div>
         <button className="link-btn danger" onClick={() => { if (confirm('Reset all demo data?')) dispatch({ type: 'RESET' }) }}>

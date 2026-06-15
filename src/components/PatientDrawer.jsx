@@ -2,7 +2,7 @@
 // ONE patient's full picture in a single place: status summary, a temperature
 // sparkline, the complete reading history, and every visit note. Reads the
 // patient live from the store by id, so it updates the moment a temp is added.
-import React from 'react'
+import React, { useMemo } from 'react'
 import { useStore } from '../store.jsx'
 import { CONFIG } from '../constants.js'
 import {
@@ -13,13 +13,15 @@ import { Badge, fmtTime } from './ui.jsx'
 export default function PatientDrawer({ patientId, onClose }) {
   const { state } = useStore()
   const p = state.patients.find((x) => x.id === patientId)
+  const readings = p?.readings ?? []
+  const visits = p?.visits ?? []
+  const readingsDesc = useMemo(() => [...readings].sort((a, b) => b.ts - a.ts), [readings])
+  const visitsDesc = useMemo(() => [...visits].sort((a, b) => b.ts - a.ts), [visits])
   if (!p) return null
 
   const today = todayStatus(p)
   const streak = noFeverStreak(p)
   const eligible = isDischargeEligible(p)
-  const readingsDesc = [...p.readings].sort((a, b) => b.ts - a.ts)
-  const visitsDesc = [...p.visits].sort((a, b) => b.ts - a.ts)
 
   return (
     <div className="drawer-backdrop" onClick={onClose}>

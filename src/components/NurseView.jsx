@@ -1,7 +1,7 @@
 // Nurse: the data-entry frontline. One job — get every active patient measured
 // exactly once today. Pending patients float to the top; a progress meter and
 // per-patient status badge kill the "measured twice or not at all" problem.
-import React, { useMemo, useState } from 'react'
+import React, { useDeferredValue, useMemo, useState } from 'react'
 import { useStore } from '../store.jsx'
 import { ROLES, CONFIG } from '../constants.js'
 import { todayStatus, latestReading, noFeverStreak, validateTemp, workflowStatus } from '../logic.js'
@@ -16,22 +16,31 @@ export default function NurseView() {
   const [target, setTarget] = useState(null)
   const [historyFor, setHistoryFor] = useState(null)
   const [toast, setToast] = useState(null)
+  const deferredSearch = useDeferredValue(search)
 
-  const active = state.patients.filter((p) => p.status === 'active')
   const rows = useMemo(() => {
-    return active
-      .map((p) => ({ p, today: todayStatus(p), workflow: workflowStatus(p) }))
+    return state.patients
+      .filter((p) => p.status === 'active')
+      .map((p) => ({
+        p,
+        last: latestReading(p),
+        streak: noFeverStreak(p),
+        today: todayStatus(p),
+        workflow: workflowStatus(p)
+      }))
       .sort((a, b) => {
         const rank = (row) => row.workflow.escalated ? 0 : row.workflow.needsRecheck ? 1 : row.today.status === 'none' ? 2 : row.today.status === 'febrile' ? 3 : 4
         return rank(a) - rank(b) || a.p.bed - b.p.bed
       })
-  }, [active])
+  }, [state.patients])
 
-  const measured = rows.filter((r) => r.today.status !== 'none').length
-  const q = search.trim().toLowerCase()
-  const visible = rows
-    .filter((r) => (pendingOnly ? r.today.status === 'none' : true))
-    .filter((r) => (q ? r.p.name.toLowerCase().includes(q) || String(r.p.bed) === q : true))
+  const measured = useMemo(() => rows.filter((r) => r.today.status !== 'none').length, [rows])
+  const q = deferredSearch.trim().toLowerCase()
+  const visible = useMemo(() => {
+    return rows
+      .filter((r) => (pendingOnly ? r.today.status === 'none' : true))
+      .filter((r) => (q ? r.p.name.toLowerCase().includes(q) || String(r.p.bed) === q : true))
+  }, [pendingOnly, q, rows])
 
   return (
     <div>
@@ -65,9 +74,7 @@ export default function NurseView() {
       </div>
 
       <div className="card-list">
-        {visible.map(({ p, today, workflow }) => {
-          const last = latestReading(p)
-          const streak = noFeverStreak(p)
+        {visible.map(({ p, today, workflow, last, streak }) => {
           return (
             <div className="patient-row" key={p.id}>
               <div className="pr-bed">#{p.bed}</div>
