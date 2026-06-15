@@ -39,19 +39,23 @@ export default function App() {
   const m = facilityMetrics(state.patients)
   const active = ROLES[role]
 
+  const today = new Intl.DateTimeFormat('en', { weekday: 'long', month: 'long', day: 'numeric' }).format(new Date())
+
   return (
-    <div className="app">
+    <div className="app" style={{ '--role-color': active.color }}>
+      <div className="ambient ambient-one" />
+      <div className="ambient ambient-two" />
       <header className="topbar">
         <div className="brand">
-          <div className="brand-mark">✚</div>
+          <div className="brand-mark">+</div>
           <div>
             <div className="brand-title">Recovery Centre</div>
-            <div className="brand-sub">Daily workflow · {CONFIG.BED_CAPACITY} beds</div>
+            <div className="brand-sub">Clinical operations system</div>
           </div>
         </div>
 
         <div className="topbar-right">
-          <div className="who" style={{ '--role-color': active.color }}>
+          <div className="who">
             <span className="who-dot" />
             <div>
               <div className="who-name">{active.user}</div>
@@ -62,10 +66,23 @@ export default function App() {
         </div>
       </header>
 
+      <section className="workspace-head">
+        <div>
+          <div className="workspace-kicker"><span /> {active.label} workspace</div>
+          <h1>{active.tagline}</h1>
+          <p>{today} · Live operational view</p>
+        </div>
+        <div className="workspace-seal" aria-hidden="true">
+          <span>{active.user.charAt(0)}</span>
+          <small>{active.label}</small>
+        </div>
+      </section>
+
       <div className="quickbar">
-        <span><strong>{m.occupancy}</strong>/{CONFIG.BED_CAPACITY} occupied</span>
-        <span><strong>{state.patients.filter((p) => p.status === 'active' && p.dischargeApproved).length}</strong> awaiting discharge</span>
-        <span><strong>{m.dischargedCount}</strong> recovered · <strong>{m.deceasedCount}</strong> died</span>
+        <div className="quick-stat"><span>Occupancy</span><strong>{m.occupancy}<small> / {CONFIG.BED_CAPACITY}</small></strong></div>
+        <div className="quick-stat"><span>Awaiting discharge</span><strong>{state.patients.filter((p) => p.status === 'active' && p.dischargeApproved).length}</strong></div>
+        <div className="quick-stat"><span>Recovered</span><strong>{m.dischargedCount}</strong></div>
+        <div className="quick-stat"><span>Exceptions</span><strong>{m.escalatedCount + m.tempPendingCount}</strong></div>
         <button className="link-btn danger" onClick={() => { if (confirm('Reset all demo data?')) dispatch({ type: 'RESET' }) }}>
           Reset demo data
         </button>
@@ -76,7 +93,7 @@ export default function App() {
       </main>
 
       <footer className="footer muted small">
-        Prototype · role-based recovery-centre workflow · data persists locally in your browser
+        Recovery Centre prototype · role-scoped workflow · local demo data
       </footer>
     </div>
   )
