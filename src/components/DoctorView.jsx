@@ -7,15 +7,17 @@ import { useStore } from '../store.jsx'
 import { ROLES, CONFIG } from '../constants.js'
 import {
   todayStatus, visitedToday, noFeverStreak, isDischargeEligible,
-  recentReadings, isHighFever
+  isHighFever
 } from '../logic.js'
-import { Badge, TempBadge, Modal, fmtTime, timeAgo } from './ui.jsx'
+import { Badge, TempBadge, Modal } from './ui.jsx'
+import PatientDrawer from './PatientDrawer.jsx'
 
 export default function DoctorView() {
   const { state, dispatch } = useStore()
   const me = ROLES.doctor.user
   const [visitFor, setVisitFor] = useState(null)
   const [deathFor, setDeathFor] = useState(null)
+  const [historyFor, setHistoryFor] = useState(null)
   const [search, setSearch] = useState('')
 
   const active = state.patients.filter((p) => p.status === 'active')
@@ -55,6 +57,7 @@ export default function DoctorView() {
           <DoctorRow
             key={row.p.id} row={row}
             onVisit={() => setVisitFor(row.p)}
+            onHistory={() => setHistoryFor(row.p.id)}
             onApprove={() => dispatch({ type: 'APPROVE_DISCHARGE', patientId: row.p.id, by: me })}
             onDeath={() => setDeathFor(row.p)}
           />
@@ -69,6 +72,7 @@ export default function DoctorView() {
         <DeathModal patient={deathFor} onClose={() => setDeathFor(null)}
           onSave={(note) => { dispatch({ type: 'RECORD_DEATH', patientId: deathFor.id, note, by: me }); setDeathFor(null) }} />
       )}
+      {historyFor && <PatientDrawer patientId={historyFor} onClose={() => setHistoryFor(null)} />}
     </div>
   )
 }
@@ -81,10 +85,8 @@ function priority(row) {
   return 3
 }
 
-function DoctorRow({ row, onVisit, onApprove, onDeath }) {
+function DoctorRow({ row, onVisit, onHistory, onApprove, onDeath }) {
   const { p, today, visit, streak, eligible } = row
-  const [open, setOpen] = useState(false)
-  const recents = recentReadings(p, 5)
   const highFever = today.readings.some((r) => isHighFever(r.tempF))
 
   return (
@@ -104,29 +106,10 @@ function DoctorRow({ row, onVisit, onApprove, onDeath }) {
             ? <Badge tone="info" title={visit.visits[visit.visits.length - 1].note}>Visited by {visit.visits[visit.visits.length - 1].by}</Badge>
             : <Badge tone="warn">Review pending</Badge>}
           <span className="muted" title="Consecutive no-fever days">streak {streak}/{CONFIG.NO_FEVER_DAYS_REQUIRED}</span>
-          <button className="link-btn" onClick={() => setOpen((v) => !v)}>{open ? 'hide' : 'history'}</button>
         </div>
-        {open && (
-          <div className="history">
-            <div className="history-label">Recent readings</div>
-            {recents.length === 0 && <span className="muted">none</span>}
-            {recents.map((r) => (
-              <span key={r.id} className={`chip ${r.tempF >= CONFIG.FEVER_THRESHOLD_F ? 'chip-hot' : 'chip-cool'}`}>
-                {r.tempF}°F <small>{fmtTime(r.ts)}</small>
-              </span>
-            ))}
-            {p.visits.length > 0 && (
-              <>
-                <div className="history-label">Recent notes</div>
-                {[...p.visits].slice(-3).reverse().map((v) => (
-                  <div key={v.id} className="note">“{v.note}” <small className="muted">— {v.by}, {timeAgo(v.ts)}</small></div>
-                ))}
-              </>
-            )}
-          </div>
-        )}
       </div>
       <div className="pr-actions col">
+        <button className="btn" onClick={onHistory}>View history</button>
         <button className="btn" onClick={onVisit}>Log visit</button>
         <button className="btn btn-primary" disabled={!eligible || p.dischargeApproved} onClick={onApprove}
           title={p.dischargeApproved ? 'Already approved — awaiting bed release' : eligible ? 'Approve discharge' : `Needs ${CONFIG.NO_FEVER_DAYS_REQUIRED} consecutive no-fever days`}>

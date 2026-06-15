@@ -6,6 +6,7 @@ import { useStore } from '../store.jsx'
 import { ROLES, CONFIG } from '../constants.js'
 import { facilityMetrics } from '../logic.js'
 import { Badge, Bar, fmtTime } from './ui.jsx'
+import PatientDrawer from './PatientDrawer.jsx'
 
 export default function AdminView() {
   const { state, dispatch } = useStore()
@@ -15,6 +16,7 @@ export default function AdminView() {
 
   const queue = state.patients.filter((p) => p.status === 'active' && p.dischargeApproved)
   const [name, setName] = useState('')
+  const [historyFor, setHistoryFor] = useState(null)
 
   return (
     <div>
@@ -46,6 +48,7 @@ export default function AdminView() {
                   <div className="pr-meta muted">Approved by Dr. — admitted {fmtTime(p.admittedTs)}</div>
                 </div>
                 <div className="pr-actions">
+                  <button className="btn" onClick={() => setHistoryFor(p.id)}>History</button>
                   <button className="btn btn-primary" onClick={() => dispatch({ type: 'COMPLETE_DISCHARGE', patientId: p.id, by: me })}>
                     Release bed
                   </button>
@@ -73,6 +76,7 @@ export default function AdminView() {
           </button>
         </section>
       </div>
+      {historyFor && <PatientDrawer patientId={historyFor} onClose={() => setHistoryFor(null)} />}
     </div>
   )
 }

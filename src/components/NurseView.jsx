@@ -6,6 +6,7 @@ import { useStore } from '../store.jsx'
 import { ROLES, CONFIG } from '../constants.js'
 import { todayStatus, latestReading, noFeverStreak, validateTemp } from '../logic.js'
 import { Badge, TempBadge, Modal, Bar, fmtTime } from './ui.jsx'
+import PatientDrawer from './PatientDrawer.jsx'
 
 export default function NurseView() {
   const { state, dispatch } = useStore()
@@ -13,6 +14,7 @@ export default function NurseView() {
   const [pendingOnly, setPendingOnly] = useState(false)
   const [search, setSearch] = useState('')
   const [target, setTarget] = useState(null)
+  const [historyFor, setHistoryFor] = useState(null)
   const [toast, setToast] = useState(null)
 
   const active = state.patients.filter((p) => p.status === 'active')
@@ -80,6 +82,7 @@ export default function NurseView() {
                 <TempBadge status={today.status} value={today.status !== 'none' && today.readings.length ? today.readings[today.readings.length - 1].tempF : null} />
               </div>
               <div className="pr-actions">
+                <button className="btn" onClick={() => setHistoryFor(p.id)}>View history</button>
                 <button className="btn btn-primary" onClick={() => setTarget(p)}>
                   {today.status === 'none' ? 'Record temp' : 'Record again'}
                 </button>
@@ -102,6 +105,7 @@ export default function NurseView() {
           }}
         />
       )}
+      {historyFor && <PatientDrawer patientId={historyFor} onClose={() => setHistoryFor(null)} />}
     </div>
   )
 }
