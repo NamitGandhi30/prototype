@@ -16,10 +16,13 @@ export default function DoctorView() {
   const me = ROLES.doctor.user
   const [visitFor, setVisitFor] = useState(null)
   const [deathFor, setDeathFor] = useState(null)
+  const [search, setSearch] = useState('')
 
   const active = state.patients.filter((p) => p.status === 'active')
+  const q = search.trim().toLowerCase()
   const rows = useMemo(() => {
     return active
+      .filter((p) => (q ? p.name.toLowerCase().includes(q) || String(p.bed) === q : true))
       .map((p) => ({
         p,
         today: todayStatus(p),
@@ -28,7 +31,7 @@ export default function DoctorView() {
         eligible: isDischargeEligible(p)
       }))
       .sort((a, b) => priority(a) - priority(b) || a.p.bed - b.p.bed)
-  }, [active])
+  }, [active, q])
 
   return (
     <div>
@@ -38,6 +41,14 @@ export default function DoctorView() {
           <p className="muted">Febrile and not-yet-seen patients are listed first. Review after the day's temperature is in.</p>
         </div>
       </div>
+
+      <input
+        className="search"
+        type="search"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search patient by name or bed #…"
+      />
 
       <div className="card-list">
         {rows.map((row) => (
@@ -83,7 +94,9 @@ function DoctorRow({ row, onVisit, onApprove, onDeath }) {
         <div className="pr-name">
           {p.name}
           {highFever && <Badge tone="danger" title="High fever flagged">HIGH FEVER</Badge>}
-          {eligible && <Badge tone="ok" title="Meets 3-day no-fever criterion">Discharge-ready</Badge>}
+          {p.dischargeApproved
+            ? <Badge tone="info" title="Approved — awaiting bed release by admin">Discharge approved</Badge>
+            : eligible && <Badge tone="ok" title="Meets 3-day no-fever criterion">Discharge-ready</Badge>}
         </div>
         <div className="pr-meta">
           <TempBadge status={today.status} value={today.readings.length ? today.readings[today.readings.length - 1].tempF : null} />
@@ -115,9 +128,9 @@ function DoctorRow({ row, onVisit, onApprove, onDeath }) {
       </div>
       <div className="pr-actions col">
         <button className="btn" onClick={onVisit}>Log visit</button>
-        <button className="btn btn-primary" disabled={!eligible} onClick={onApprove}
-          title={eligible ? 'Approve discharge' : `Needs ${CONFIG.NO_FEVER_DAYS_REQUIRED} consecutive no-fever days`}>
-          Approve discharge
+        <button className="btn btn-primary" disabled={!eligible || p.dischargeApproved} onClick={onApprove}
+          title={p.dischargeApproved ? 'Already approved — awaiting bed release' : eligible ? 'Approve discharge' : `Needs ${CONFIG.NO_FEVER_DAYS_REQUIRED} consecutive no-fever days`}>
+          {p.dischargeApproved ? 'Approved ✓' : 'Approve discharge'}
         </button>
         <button className="btn btn-ghost-danger" onClick={onDeath}>Record death</button>
       </div>

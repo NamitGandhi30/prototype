@@ -26,7 +26,10 @@ export default function NurseView() {
   }, [active])
 
   const measured = rows.filter((r) => r.today.status !== 'none').length
-  const visible = pendingOnly ? rows.filter((r) => r.today.status === 'none') : rows
+  const q = search.trim().toLowerCase()
+  const visible = rows
+    .filter((r) => (pendingOnly ? r.today.status === 'none' : true))
+    .filter((r) => (q ? r.p.name.toLowerCase().includes(q) || String(r.p.bed) === q : true))
 
   return (
     <div>
@@ -40,6 +43,16 @@ export default function NurseView() {
           Show pending only
         </label>
       </div>
+
+      {toast && <div className="toast">✓ {toast}</div>}
+
+      <input
+        className="search"
+        type="search"
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search patient by name or bed #…"
+      />
 
       <div className="progress-card">
         <div className="progress-top">
@@ -83,6 +96,8 @@ export default function NurseView() {
           onClose={() => setTarget(null)}
           onSave={(tempF) => {
             dispatch({ type: 'RECORD_TEMP', patientId: target.id, tempF, by: me })
+            setToast(`Recorded ${tempF}°F for ${target.name}. Now visible to the doctor.`)
+            setTimeout(() => setToast(null), 4000)
             setTarget(null)
           }}
         />
