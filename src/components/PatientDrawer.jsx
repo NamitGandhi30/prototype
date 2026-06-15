@@ -1,7 +1,6 @@
-// Shared, read-only patient-detail drawer. Slides in from the right and shows
-// ONE patient's full picture in a single place: status summary, a temperature
-// sparkline, the complete reading history, and every visit note. Reads the
-// patient live from the store by id, so it updates the moment a temp is added.
+// Shared, read-only patient-detail drawer. Shows one patient's full picture:
+// status summary, onboarding context, temperature trend, readings, visits, and
+// final discharge/death details when available.
 import React, { useMemo } from 'react'
 import { useStore } from '../store.jsx'
 import { CONFIG } from '../constants.js'
@@ -29,13 +28,12 @@ export default function PatientDrawer({ patientId, onClose }) {
         <div className="drawer-head">
           <div>
             <div className="drawer-name">{p.name}</div>
-            <div className="muted small">Bed #{p.bed ?? '—'} · admitted {fmtTime(p.admittedTs)}</div>
+            <div className="muted small">Bed #{p.bed ?? '-'} - admitted {fmtTime(p.admittedTs)}</div>
           </div>
-          <button className="icon-btn" onClick={onClose} aria-label="Close">×</button>
+          <button className="icon-btn" onClick={onClose} aria-label="Close">x</button>
         </div>
 
         <div className="drawer-body">
-          {/* status summary */}
           <div className="drawer-badges">
             <StatusBadge status={p.status} />
             {today.status === 'febrile' && <Badge tone="danger">Febrile today</Badge>}
@@ -52,13 +50,27 @@ export default function PatientDrawer({ patientId, onClose }) {
             <div><span className="ds-val">{p.visits.length}</span><span className="ds-lbl">visits</span></div>
           </div>
 
-          {/* temperature trend */}
+          {p.onboarding && (
+            <section className="drawer-section">
+              <h4>Onboarding</h4>
+              <div className="drawer-detail-grid">
+                <Detail label="Age" value={p.onboarding.age || 'Not specified'} />
+                <Detail label="Sex" value={p.onboarding.sex || 'Not specified'} />
+                <Detail label="Acuity" value={p.onboarding.acuity || 'Routine'} />
+                <Detail label="Source" value={p.onboarding.source || 'Walk-in'} />
+                <Detail label="Reason" value={p.onboarding.reason || 'Not recorded'} wide />
+                <Detail label="Emergency contact" value={p.onboarding.contact || 'Not recorded'} />
+                <Detail label="Phone" value={p.onboarding.phone || 'Not recorded'} />
+                {p.onboarding.notes && <Detail label="Intake notes" value={p.onboarding.notes} wide />}
+              </div>
+            </section>
+          )}
+
           <section className="drawer-section">
             <h4>Temperature trend</h4>
             <Sparkline readings={p.readings} />
           </section>
 
-          {/* full reading history */}
           <section className="drawer-section">
             <h4>Reading history</h4>
             {readingsDesc.length === 0 && <div className="muted small">No readings recorded yet.</div>}
@@ -67,8 +79,8 @@ export default function PatientDrawer({ patientId, onClose }) {
                 <div className="reading-record" key={r.id}>
                   <div className="tl-row">
                     <span className={`tl-dot ${isFebrile(r.tempF) ? 'hot' : 'cool'}`} />
-                    <span className="tl-temp">{r.tempF}°F{isHighFever(r.tempF) ? ' high' : ''}</span>
-                    <span className="muted small">{fmtTime(r.ts)} · {r.by}</span>
+                    <span className="tl-temp">{r.tempF}F{isHighFever(r.tempF) ? ' high' : ''}</span>
+                    <span className="muted small">{fmtTime(r.ts)} - {r.by}</span>
                   </div>
                   {(r.note || r.needsRecheck || r.escalated || r.overrideReason) && (
                     <div className="reading-context">
@@ -85,14 +97,13 @@ export default function PatientDrawer({ patientId, onClose }) {
             </div>
           </section>
 
-          {/* visit notes */}
           <section className="drawer-section">
             <h4>Visit notes</h4>
             {visitsDesc.length === 0 && <div className="muted small">No visits logged yet.</div>}
             {visitsDesc.map((v) => (
               <div className="drawer-note" key={v.id}>
-                <div>“{v.note}”</div>
-                <div className="muted small">{v.by} · {fmtTime(v.ts)}</div>
+                <div>"{v.note}"</div>
+                <div className="muted small">{v.by} - {fmtTime(v.ts)}</div>
               </div>
             ))}
           </section>
@@ -101,8 +112,20 @@ export default function PatientDrawer({ patientId, onClose }) {
             <section className="drawer-section">
               <h4>Outcome</h4>
               <div className="small">
-                {p.status === 'discharged' ? 'Discharged' : 'Deceased'} · {fmtTime(p.outcomeTs)} · {p.outcomeBy}
+                {p.status === 'discharged' ? 'Discharged' : 'Deceased'} - {fmtTime(p.outcomeTs)} - {p.outcomeBy}
                 {p.outcomeNote && <div className="muted">{p.outcomeNote}</div>}
+              </div>
+            </section>
+          )}
+
+          {p.discharge && (
+            <section className="drawer-section">
+              <h4>Discharge details</h4>
+              <div className="drawer-detail-grid outcome-details">
+                <Detail label="Destination" value={p.discharge.destination || 'Not recorded'} />
+                <Detail label="Follow-up" value={p.discharge.followUp || 'Not booked'} />
+                <Detail label="Instructions" value={p.discharge.instructions || 'Not recorded'} wide />
+                {p.discharge.note && <Detail label="Admin note" value={p.discharge.note} wide />}
               </div>
             </section>
           )}
@@ -118,7 +141,15 @@ function StatusBadge({ status }) {
   return <Badge tone="neutral">Active</Badge>
 }
 
-// Lightweight inline SVG sparkline with the fever threshold drawn in.
+function Detail({ label, value, wide = false }) {
+  return (
+    <div className={wide ? 'detail-card wide' : 'detail-card'}>
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  )
+}
+
 function Sparkline({ readings }) {
   const data = [...readings].sort((a, b) => a.ts - b.ts).slice(-12)
   if (data.length === 0) return <div className="muted small">No data yet.</div>
@@ -133,13 +164,11 @@ function Sparkline({ readings }) {
   const path = data.map((d, i) => `${i === 0 ? 'M' : 'L'} ${x(i).toFixed(1)} ${y(d.tempF).toFixed(1)}`).join(' ')
 
   return (
-    <svg className="spark" viewBox={`0 0 ${W} ${H}`} width="100%" height={H} preserveAspectRatio="none">
-      <line x1={PAD} x2={W - PAD} y1={feverY} y2={feverY} stroke="#e0a33a" strokeDasharray="4 3" strokeWidth="1" />
-      <text x={W - PAD} y={feverY - 4} textAnchor="end" fontSize="9" fill="#b45309">fever {CONFIG.FEVER_THRESHOLD_F}°F</text>
-      {data.length > 1 && <path d={path} fill="none" stroke="#2563eb" strokeWidth="2" />}
+    <svg className="spark" viewBox={`0 0 ${W} ${H}`} role="img" aria-label="Temperature sparkline">
+      <line x1={PAD} x2={W - PAD} y1={feverY} y2={feverY} stroke="#b83d38" strokeDasharray="3 3" opacity=".55" />
+      <path d={path} fill="none" stroke="#155c50" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
       {data.map((d, i) => (
-        <circle key={d.id} cx={x(i)} cy={y(d.tempF)} r="3.5"
-          fill={isFebrile(d.tempF) ? '#dc2626' : '#16a34a'} stroke="#fff" strokeWidth="1.5" />
+        <circle key={d.id} cx={x(i)} cy={y(d.tempF)} r="3.5" fill={isFebrile(d.tempF) ? '#b83d38' : '#277b55'} />
       ))}
     </svg>
   )

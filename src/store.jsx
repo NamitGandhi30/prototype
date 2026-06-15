@@ -95,12 +95,20 @@ function reducer(state, action) {
 
     // -- Admin: complete a discharge (frees the bed) ---------------------
     case 'COMPLETE_DISCHARGE': {
-      const { patientId, by } = action
+      const { patientId, by, destination = '', followUp = '', instructions = '', note = '', checklist = {} } = action
       const target = state.patients.find((p) => p.id === patientId)
       if (!target || !target.dischargeApproved || target.status !== 'active') return state
       const patients = state.patients.map((p) =>
         p.id === patientId
-          ? { ...p, status: 'discharged', outcomeBed: p.bed, bed: null, outcomeTs: Date.now(), outcomeBy: by }
+          ? {
+              ...p,
+              status: 'discharged',
+              outcomeBed: p.bed,
+              bed: null,
+              outcomeTs: Date.now(),
+              outcomeBy: by,
+              discharge: { destination, followUp, instructions, note, checklist, completedBy: by, completedTs: Date.now() }
+            }
           : p
       )
       return {
@@ -127,12 +135,24 @@ function reducer(state, action) {
 
     // -- Admin: admit a new patient (hard-capped at capacity) ------------
     case 'ADMIT': {
-      const { name, by } = action
+      const {
+        name,
+        by,
+        age = '',
+        sex = '',
+        reason = '',
+        acuity = 'Routine',
+        source = 'Walk-in',
+        contact = '',
+        phone = '',
+        notes = ''
+      } = action
       if (activeCount(state.patients) >= CONFIG.BED_CAPACITY) return state // guard
       const bed = state.nextBed
       const patient = {
         id: newId('p'), name, bed, admittedTs: Date.now(),
-        status: 'active', dischargeApproved: false, readings: [], visits: []
+        status: 'active', dischargeApproved: false, readings: [], visits: [],
+        onboarding: { age, sex, reason, acuity, source, contact, phone, notes, admittedBy: by }
       }
       return {
         ...state,
