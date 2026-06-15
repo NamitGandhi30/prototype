@@ -27,6 +27,7 @@ export const ROLES = {
     key: 'nurse',
     label: 'Nurse',
     user: 'Nurse Adams',
+    email: 'nurse@recovery.demo',
     tagline: 'Daily temperature capture',
     color: '#2563eb'
   },
@@ -34,6 +35,7 @@ export const ROLES = {
     key: 'doctor',
     label: 'Doctor',
     user: 'Dr. Lee',
+    email: 'doctor@recovery.demo',
     tagline: 'Clinical review & discharge approval',
     color: '#0d9488'
   },
@@ -41,6 +43,7 @@ export const ROLES = {
     key: 'admin',
     label: 'Admin / Front desk',
     user: 'Admin Patel',
+    email: 'admin@recovery.demo',
     tagline: 'Admissions & bed throughput',
     color: '#9333ea'
   },
@@ -48,9 +51,12 @@ export const ROLES = {
     key: 'lead',
     label: 'Facility lead',
     user: 'Dr. Rao (Head)',
+    email: 'lead@recovery.demo',
     tagline: 'Quality & safety oversight (read-only)',
     color: '#b45309'
   }
 }
 
 export const ROLE_ORDER = ['nurse', 'doctor', 'admin', 'lead']
+
+export const DEMO_PASSWORD = 'demo123'

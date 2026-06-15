@@ -11,7 +11,8 @@ npm install
 npm run dev      # opens http://localhost:5173
 ```
 
-Use the **role switcher** in the top bar to move between Nurse, Doctor, Admin, and Facility lead.
+Choose a demo account on the sign-in screen and use password **`demo123`**. Each account opens its
+role-specific workspace; sign out to switch between Nurse, Doctor, Admin, and Facility lead.
 Data persists in your browser (localStorage); **Reset demo data** in the quick bar restores the seed.
 
 ## How the code maps to the analysis
